@@ -349,4 +349,99 @@ local list = {
         return Vector(math_random(-1e9,1e9),math_random(-1e9,1e9),math_random(-1e9,1e9)) 
     end},
 
-    {'GetMaxHealth',...more
+    {'GetMaxHealth',function() 
+        return math_random(-1e9,1e9) 
+    end},
+
+    {'GetColor4Part',function() -- why does this function exist lol
+        return math_random(-1e9,1e9),math_random(-1e9,1e9),math_random(-1e9,1e9),math_random(-1e9,1e9)
+    end},
+}
+
+do
+    local function rblock(i)
+        local ofnc = list[i]
+
+        qfunc(false, Entity, ofnc[1], function(self)
+            if ishacker(self) then
+                return ofnc[2](self)
+            end
+        end)
+    end
+
+    rblock(1)
+    rblock(2)
+    rblock(3)
+    rblock(4)
+    rblock(5)
+    rblock(6)
+    rblock(7)
+    rblock(8)
+
+    local saveindexes = {}
+    local string_lower = string.lower
+
+    local function savevarblock(i,builderfunc)
+        saveindexes[i] = (builderfunc or true)
+    end
+
+    savevarblock('m_iName')
+    savevarblock('model')
+    savevarblock('avelocity',Vector)
+    savevarblock('velocity',Vector)
+    savevarblock('m_angAbsRotation',Angle)
+    savevarblock('m_angRotation',Angle)
+    savevarblock('rendercolor',Color)
+
+    block(Entity,'SetSaveValue')
+    block(Entity,'GetSaveTable',nil,{})
+
+    qfunc(false,Entity,'GetInternalVariable',function(self,name)
+        local build = saveindexes[name]
+
+        if ishacker(self) and build then
+            return (isfunction(build) and build(math_random(-1e9,1e9),math_random(-1e9,1e9),math_random(-1e9,1e9))) or obfustring(math_random(15,25)) 
+        end
+    end)
+
+    local rnnstr = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ___________________________________________'
+
+    local function getrnn(len)
+        return string_gsub(string_sub(gstrbase, 1, len), '!', function()
+            local rnn = math_random(1, #rnnstr)
+            return string_sub(rnnstr, rnn, rnn)
+        end)
+    end
+
+    qfunc(false, Entity, 'GetModel', function(self)
+        if ishacker(self) then
+            return string_format('%s_/%s__/%s___/404.mdl',getrnn(10),getrnn(11),getrnn(12))
+        end
+    end)
+end
+
+Hacker.T_Simple(0, function()
+    if CLIENT then
+        qfunc(false, GAMEMODE, 'AddDeathNotice', function(self, attacker, team1, inflictor, victim)
+            if language_GetPhrase(victim) == language_GetPhrase(Hacker.classname) then 
+                return false 
+            end
+        end)
+    end
+
+    if SERVER then
+        qfunc(false, GAMEMODE, 'OnNPCKilled', function(self, ent)
+            if hackerkilled[ent] then 
+                return false 
+            end
+        end)
+    end
+end)
+
+Hacker.classname = string.lower(obfustring(25))
+Hacker.__ignited = ignited
+
+Hacker.block = block
+Hacker.qfunc = qfunc
+
+return Hacker
