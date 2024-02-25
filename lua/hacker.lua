@@ -351,10 +351,7 @@ ofunc(e,'SetLegacyTransform')
 ofunc(e,'SetLayerSequence')
 ofunc(e,'SetAnimTime')
 ofunc(e,'FrameAdvance')
-
-if SERVER then
-    ofunc(e,'EntIndex',nil,-1)
-end
+ofunc(e,'EntIndex',nil,0)
 
 ofunc(x,'StartActivity')
 ofunc(x,'PlaySequenceAndWait')
@@ -397,7 +394,7 @@ ofunction(l,'SetMaxYawRate',ofunc)
 
 local function ofunc(self)
     if ishacker(self,true) then
-        return bt.math_random(-1e9,1e9) * bt.math_random()
+        return bt.math_random(-1e9,1e9)
     end
 end
 
@@ -530,7 +527,6 @@ add('Draw')
 add('BehaveStart')
 add('BehaveUpdate')
 add('BodyUpdate')
-add('isloaded')
 add('m_RenderAngles')
 add('m_RenderOrigin')
 add('speed')
@@ -550,7 +546,7 @@ ofunction(x,'__newindex',ofunc)
 
 local function ofunc(self)
     if ishacker(self,true) then
-        return 'Entity [-1][qtg_hacker_npc]'
+        return 'Entity [0][qtg_hacker_npc]'
     end
 end
 
@@ -702,11 +698,11 @@ local enttypes
 local ENT1 = {}
 local ENT2 = {}
 
-local function fixtable(self,i)
+local function fixtable(self,t)
     local t = bt.eGetTable(self)
     if !t then return end
 
-    for k,v in bt.next,(i == 1 and ENT2 or ENT1) do
+    for k,v in bt.next,t do
         bt.rawset(t,k,v)
     end
 end
@@ -757,7 +753,7 @@ if SERVER then
 
         if bt.eIsValid(ent) then 
             if ishacker(ent) then
-                fixtable(ent,1)
+                fixtable(ent,ENT2)
                 
                 bt.eSetName(ent,'')
             end
@@ -1392,8 +1388,8 @@ waitfor('scripted_ents',function(scripted_ents)
         local e = bt.ents_Create(classname2)
 
         if bt.eIsValid(e) then
-            fixtable(e,2)
-            
+            fixtable(e,ENT1)
+
             bt.eSetPos(e,bt.eGetPos(self))
             bt.eSpawn(e)
             bt.eSetCollisionBounds(e,a,b)
@@ -1422,17 +1418,18 @@ waitfor('scripted_ents',function(scripted_ents)
 
     if SERVER then
         function ENT2:OnKilled() end
+        function ENT2:KeyValue() end
 
         function ENT2:OnRemove()
             isqtg[self] = nil
         end
 
-        function ENT2:AcceptInput()
-            return true
+        function ENT2:OnTakeDamage()
+            return 0
         end
 
-        function ENT2:KeyValue()
-            return false
+        function ENT2:AcceptInput()
+            return true
         end
 
         local t = {}
@@ -1461,7 +1458,6 @@ waitfor('scripted_ents',function(scripted_ents)
                 end
             else
                 pos1 = pos
-                print(pos)
             end
 
             if !pos1 then return end
@@ -1636,11 +1632,13 @@ waitfor('scripted_ents',function(scripted_ents)
                         bt.eEmitSound(self,sound)
                     end
                 elseif dist < 0.5 then
-                    if !bt.eIsOnFire(e) then
-                        bt.eEmitSound(e,'ambient/fire/ignite.wav')
-                    end
+                    local notOnFire = !bt.eIsOnFire(e)
 
                     bt.eIgnite(e,1e9)
+
+                    if notOnFire and bt.eIsOnFire(e) then
+                        bt.eEmitSound(e,'ambient/fire/ignite.wav')
+                    end
                 end
 
                 local ln2DSqr = bt.vLength2DSqr(pos2-pos)
@@ -1890,20 +1888,18 @@ ofunction(game,'ConsoleCommand',function(s)
     end
 end)
 
-local function ofunc(k)
-    ofunction(c,k,function(self)
-        local name = bt.cGetName(self)
+local function ofunc(self)
+    local name = bt.cGetName(self)
 
-        if name and blocked[name] then
-            return -1
-        end
-    end)
+    if name and blocked[name] then
+        return -1
+    end
 end
 
-ofunc('SetString')
-ofunc('SetFloat')
-ofunc('SetBool')
-ofunc('SetInt')
+ofunction(c,'SetString',ofunc)
+ofunction(c,'SetFloat',ofunc)
+ofunction(c,'SetBool',ofunc)
+ofunction(c,'SetInt',ofunc)
 
 local old = game.CleanUpMap
 function game.CleanUpMap(b,t,...)
@@ -2002,9 +1998,10 @@ if CLIENT then
     end)
 end
 
-local watch = true
-local debug_sethook = debug.sethook
+local watchhook = true
+local lastargs = nil
 
+local debug_sethook = debug.sethook
 local masksearch = '[crl]'
 local masknames = {
     ['tail call'] = 'c',
@@ -2014,9 +2011,10 @@ local masknames = {
 }
 
 ofunction(debug,'sethook',function(...)
-    if !watch then return end
+    if !watchhook then return end
 
     local args = {...}
+    lastargs = args
 
     if args[1] == nil then
         args = {rephook,'l'}
@@ -2058,17 +2056,13 @@ ofunction(debug,'sethook',function(...)
         end
     end
 
-    local rets = {debug_sethook(bt.unpack(args))}
-
-    if rets[1] != nil then
-        return bt.unpack(rets)
-    else
-        return -1
-    end
+    return -1
 end)
 
 debug_sethook(rephook,'l')
 
 bt.timer_Simple(0,function()
-    watch = nil
+    debug_sethook(bt.unpack(lastargs or {}))
+
+    watchhook = nil
 end)
