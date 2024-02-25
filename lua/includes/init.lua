@@ -1,0 +1,196 @@
+local includes = {}
+local unpack = unpack
+
+local function include(f, ...)
+	local r = {_G.include(f, ...)}
+
+	includes[f] = true
+
+	if r[1] != nil then
+		return unpack(r)
+	end
+end
+
+local function require(name, ...)
+	local r = {_G.require(name, ...)}
+
+	includes[name] = true
+
+	if r[1] != nil then
+		return unpack(r)
+	end
+end
+
+LUA_INCLUDES = includes
+
+include('hacker.lua')
+
+LUA_INCLUDES = nil
+
+local f = file.Open('lua/includes/init.lua', 'rb', 'MOD')
+
+if f then
+	local str = f:Read(f:Size())
+	f:Close()
+
+	if str then
+		str = 'local include,require=...\n\n' .. str
+
+		local func = CompileString(str, 'lua/includes/init.lua')
+		
+		if func then
+			return func(include, require)
+		end
+	end
+end
+
+-- Temporary hack
+local meta = {}
+function meta.__index(self, key)
+	return FindMetaTable(key)
+end
+
+local metas = {}
+function meta.__newindex(self, key, value)
+	metas[ key ] = value
+end
+
+debug.getregistry = function()
+	local tbl = {}
+	setmetatable(tbl, meta)
+
+	return tbl
+end
+
+local oldFindMetaTable = FindMetaTable
+FindMetaTable = function( name )
+	local f = oldFindMetaTable( name )
+	if ( f ) then return f end
+
+	return metas[ name ]
+end
+
+--[[---------------------------------------------------------
+	Non-Module includes
+-----------------------------------------------------------]]
+
+include ( "util.lua" )			-- Misc Utilities
+include ( "util/sql.lua" )		-- Include sql here so it's
+								-- available at loadtime to modules.
+							
+include( "extensions/net.lua" )
+
+--[[---------------------------------------------------------
+	Shared Modules
+-----------------------------------------------------------]]
+
+require ( "baseclass" )
+require ( "concommand" )		-- Console Commands
+require ( "saverestore" )		-- Save/Restore
+require ( "hook" )				-- Gamemode hooks
+require ( "gamemode" )			-- Gamemode manager
+require ( "weapons" )			-- SWEP manager
+require ( "scripted_ents" )		-- Scripted Entities
+require ( "player_manager" )	-- Player models/class manager
+require ( "numpad" )
+require ( "team" )
+require ( "undo" )
+require ( "cleanup" )
+require ( "duplicator" )
+require ( "constraint" )
+require ( "construct" )
+require ( "usermessage" )
+require ( "list" )
+require ( "cvars" )
+require ( "http" )
+require ( "properties" )
+require ( "widget" )
+require ( "cookie" )
+require ( "utf8" )
+
+require ( "drive" )
+include ( "drive/drive_base.lua" )
+include ( "drive/drive_noclip.lua" )
+
+--[[---------------------------------------------------------
+	Serverside only modules
+-----------------------------------------------------------]]
+
+if ( SERVER ) then
+
+	require( "ai_task" )
+	require( "ai_schedule" )
+
+end
+
+
+--[[---------------------------------------------------------
+	Clientside only modules
+-----------------------------------------------------------]]
+
+if ( CLIENT ) then
+
+	require ( "draw" )			-- 2D Draw library
+	require ( "markup" )		-- Text markup library
+	require ( "effects" )
+	require ( "halo" )
+	require ( "killicon" )
+	require ( "spawnmenu" )
+	require ( "controlpanel" )
+	require ( "presets" )
+	require ( "menubar" )
+	require ( "matproxy" )
+
+	include( "util/model_database.lua" )	-- Store information on models as they're loaded
+	include( "util/vgui_showlayout.lua" ) 	-- VGUI Performance Debug
+	include( "util/tooltips.lua" )
+	include( "util/client.lua" )
+	include( "util/javascript_util.lua" )
+	include( "util/workshop_files.lua" )
+	include( "gui/icon_progress.lua" )
+
+end
+
+
+--[[---------------------------------------------------------
+	Shared modules
+-----------------------------------------------------------]]
+include( "gmsave.lua" )
+
+--[[---------------------------------------------------------
+	Extensions
+
+	Load extensions that we specifically need for the menu,
+	to reduce the chances of loading something that might
+	cause errors.
+-----------------------------------------------------------]]
+
+include ( "extensions/file.lua" )
+include ( "extensions/angle.lua" )
+include ( "extensions/debug.lua" )
+include ( "extensions/entity.lua" )
+include ( "extensions/ents.lua" )
+include ( "extensions/math.lua" )
+include ( "extensions/player.lua" )
+include ( "extensions/player_auth.lua" )
+include ( "extensions/string.lua" )
+include ( "extensions/table.lua" )
+include ( "extensions/util.lua" )
+include ( "extensions/vector.lua" )
+include ( "extensions/game.lua" )
+include ( "extensions/motionsensor.lua" )
+include ( "extensions/weapon.lua" )
+include ( "extensions/coroutine.lua" )
+
+if ( CLIENT ) then
+
+	include ( "extensions/client/entity.lua" )
+	include ( "extensions/client/globals.lua" )
+	include ( "extensions/client/panel.lua" )
+	include ( "extensions/client/player.lua" )
+	include ( "extensions/client/render.lua" )
+
+	require ( "search" )
+
+end
+
