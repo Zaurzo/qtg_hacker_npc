@@ -128,6 +128,10 @@ local function ofunction(tbl,k,func)
 
         if r1 ~= nil then
             if r1 == -1 then
+                if r[2] != nil then
+                    return bt.unpack(r,2)
+                end
+
                 return nil
             end
 
@@ -152,7 +156,7 @@ local function ofunc(t,k)
         local f = funcoverlay[a]
         if f then a = f end
 
-        return old(a,...)
+        return -1,old(a,...)
     end)
 end
 
@@ -180,7 +184,7 @@ ofunction(debug,'getupvalue',function(a,...)
     local f = funcsave[v]
     if f then v = f end
 
-    return k,v
+    return -1,k,v
 end)
 
 local old = debug.getlocal
@@ -210,7 +214,7 @@ ofunction(debug,'getlocal',function(a,...)
         end
     end
 
-    return old(a,...)
+    return -1,old(a,...)
 end)
 
 local old = debug.getinfo
@@ -234,7 +238,7 @@ ofunction(debug,'getinfo',function(a,...)
             end
         end
 
-        return t
+        return -1,t
     else
         local f = funcoverlay[a]
 
@@ -243,7 +247,7 @@ ofunction(debug,'getinfo',function(a,...)
         end
     end
 
-    return old(a,...)
+    return -1,old(a,...)
 end)
 
 local function ofunc(tbl,k,isspawn,...)
@@ -264,7 +268,7 @@ local function ofunc(tbl,k,isspawn,...)
 
         if pass then
             if r then
-                return bt.unpack(r)
+                return -1,bt.unpack(r)
             end
 
             return -1
@@ -351,7 +355,7 @@ ofunc(e,'SetLegacyTransform')
 ofunc(e,'SetLayerSequence')
 ofunc(e,'SetAnimTime')
 ofunc(e,'FrameAdvance')
-ofunc(e,'EntIndex',nil,0)
+ofunc(e,'EntIndex',nil,-1)
 
 ofunc(x,'StartActivity')
 ofunc(x,'PlaySequenceAndWait')
@@ -359,7 +363,7 @@ ofunc(x,'BodyMoveXY')
 
 local function ofunc(t,k,r)
     ofunction(t,k,function(self)
-        if self and (ishitbox[self] or (bt.isentity(self) and bt.eGetClass(self) == classname2)) then
+        if self and (ishitbox[self] or (bt.isentity(self) and bt.eIsValid(self) and bt.eGetClass(self) == classname2)) then
             return r
         end
     end)
@@ -406,12 +410,6 @@ ofunction(e,'GetFriction',ofunc)
 ofunction(e,'GetModel',function(self)
     if ishacker(self,true) then
         return newstr()
-    end
-end)
-
-ofunction(e,'IsNextBot',function(self)
-    if ishitbox[self] then
-        return true
     end
 end)
 
@@ -546,7 +544,7 @@ ofunction(x,'__newindex',ofunc)
 
 local function ofunc(self)
     if ishacker(self,true) then
-        return 'Entity [0][qtg_hacker_npc]'
+        return 'Entity [-1][qtg_hacker_npc]'
     end
 end
 
@@ -651,8 +649,10 @@ if SERVER then
         local old = GM.OnNPCKilled
 
         if old then
-            function OnNPCKilled(...)
-                old(GM,...)
+            if !OnNPCKilled then
+                function OnNPCKilled(...)
+                    old(GM,...)
+                end
             end
 
             function GM:OnNPCKilled(e,...)
@@ -698,11 +698,11 @@ local enttypes
 local ENT1 = {}
 local ENT2 = {}
 
-local function fixtable(self,t)
+local function fixtable(self,ct)
     local t = bt.eGetTable(self)
     if !t then return end
 
-    for k,v in bt.next,t do
+    for k,v in bt.next,ct do
         bt.rawset(t,k,v)
     end
 end
@@ -885,12 +885,8 @@ waitfor('scripted_ents',function(scripted_ents)
 
     rephook()
 
-    local behavethreads = {}
-
     local register = scripted_ents.Register
     local ispacifist
-
-    protect(behavethreads)
 
     local function get(self,k)
         local t = bt.eGetTable(self)
@@ -907,9 +903,6 @@ waitfor('scripted_ents',function(scripted_ents)
             bt.rawset(t,k,v)
         end
     end
-
-    protect(get)
-    protect(set)
 
     local function isentitygood(e)
         if ragdolled[e] or !bt.isentity(e) or ishacker(e,true) then return false end
@@ -1099,7 +1092,6 @@ waitfor('scripted_ents',function(scripted_ents)
             end
         end
 
-        behavethreads[self] = nil
         set(self,'Enemy',nil)
     end
 
@@ -1217,7 +1209,6 @@ waitfor('scripted_ents',function(scripted_ents)
             end
     
             if get(parent,'Enemy') != a and bt.eIsValid(a) and bt.type(a) == 'Player' then 
-                behavethreads[parent] = nil
                 set(parent,'Enemy',a)
             end
     
@@ -1432,15 +1423,15 @@ waitfor('scripted_ents',function(scripted_ents)
             return true
         end
 
-        local t = {}
+        local approaches = {}
 
         local function approach(self,pos)
             local h = get(self,'Hitbox')
             if !h or !bt.eIsValid(h) then return end
 
-            local pos1
+            local pos1 = approaches[self]
 
-            if navmesh_IsLoaded() then
+            if !pos1 and navmesh_IsLoaded() then
                 local path = bt.Path('Follow')
 
                 bt.tCompute(path,self,pos)
@@ -1453,6 +1444,7 @@ waitfor('scripted_ents',function(scripted_ents)
 
                         if goal then
                             pos1 = goal.pos
+                            approaches[self] = pos1
                         end
                     end
                 end
@@ -1480,7 +1472,15 @@ waitfor('scripted_ents',function(scripted_ents)
                     bt.eSetPos(self,pos4)
                     bt.eSetAngles(self,bt.Angle(0,(bt.vAngle(pos1-pos2)).y,0))
 
-                    return true,bt.vDistance(bt.eGetPos(self),pos1)
+                    local dist = bt.vDistance(bt.eGetPos(self),pos1)
+
+                    if dist < 15 then
+                        approaches[self] = nil
+
+                        return false
+                    end
+
+                    return true,dist
                 else
                     return false,'noworld'
                 end
@@ -1585,7 +1585,7 @@ waitfor('scripted_ents',function(scripted_ents)
 
                 local ok,dist = approach(self,pos)
 
-                if ok and dist and dist < 15 then
+                if !dist then
                     set(self,'RandomPos',nil)
                 end
 
@@ -1598,7 +1598,6 @@ waitfor('scripted_ents',function(scripted_ents)
 
             if ispacifist() then
                 if hasEnemy then
-                    behavethreads[self] = nil
                     set(self,'Enemy',nil)
                 end
                 
