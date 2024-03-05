@@ -1413,6 +1413,7 @@ waitfor('scripted_ents',function(scripted_ents)
 
         function ENT2:OnRemove()
             isqtg[self] = nil
+            approaches[self] = nil
         end
 
         function ENT2:OnTakeDamage()
@@ -1431,7 +1432,7 @@ waitfor('scripted_ents',function(scripted_ents)
 
             local pos1 = approaches[self]
 
-            if !pos1 and navmesh_IsLoaded() then
+            if navmesh_IsLoaded() then
                 local path = bt.Path('Follow')
 
                 bt.tCompute(path,self,pos)
@@ -1474,10 +1475,10 @@ waitfor('scripted_ents',function(scripted_ents)
 
                     local dist = bt.vDistance(bt.eGetPos(self),pos1)
 
-                    if dist < 15 then
+                    if dist < 15 then 
                         approaches[self] = nil
-
-                        return false
+                        
+                        return false 
                     end
 
                     return true,dist
@@ -1526,8 +1527,8 @@ waitfor('scripted_ents',function(scripted_ents)
 
             local h = get(self,'Hitbox')
             local pos = bt.eGetPos(self)
-
             local stareat = pos + vector_up * 60 + bt.eGetForward(self) * 100
+
             bt.eSetEyeTarget(self,stareat)
 
             if h and bt.eIsValid(h) then
