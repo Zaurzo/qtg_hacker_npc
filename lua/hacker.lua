@@ -1408,6 +1408,8 @@ waitfor('scripted_ents',function(scripted_ents)
     end
 
     if SERVER then
+        local approaches = {}
+
         function ENT2:OnKilled() end
         function ENT2:KeyValue() end
 
@@ -1423,8 +1425,6 @@ waitfor('scripted_ents',function(scripted_ents)
         function ENT2:AcceptInput()
             return true
         end
-
-        local approaches = {}
 
         local function approach(self,pos)
             local h = get(self,'Hitbox')
@@ -1477,7 +1477,7 @@ waitfor('scripted_ents',function(scripted_ents)
 
                     if dist < 15 then 
                         approaches[self] = nil
-                        
+
                         return false 
                     end
 
