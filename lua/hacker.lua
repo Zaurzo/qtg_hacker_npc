@@ -462,13 +462,16 @@ ofunction(e,'GetTable',function(self)
 end)
 
 ofunction(e,'GetSaveTable',function(self)
-    local tbl = bt.eGetSaveTable(self)
-    if !tbl or !ishacker(self,true) then return end
+    if ishacker(self,true) then
+        local tbl = bt.eGetSaveTable(self)
 
-    tbl.classname = newstr()
-    tbl.model = newstr()
+        if tbl then
+            tbl.classname = newstr()
+            tbl.model = newstr()
 
-    return tbl
+            return tbl
+        end
+    end
 end)
 
 ofunction(e,'GetInternalVariable',function(self,k)
@@ -714,38 +717,48 @@ if SERVER then
     local old = ents.Create
     local pass = function() end
 
-    local function findqtginre(fn,d)
-        d = d or {}
+    local upvaluebank do
+        upvaluebank = {}
 
-        for i=1,1/0,1 do
-            local k,v = bt.debug_getupvalue(fn,i)
-            if !k or !v then break end
+        local function add(name)
+            local t = upvaluebank[name]
 
-            local tbl = isqtginre[v]
+            if !t then
+                t = {}
+                upvaluebank[name] = t
+            end
 
-            if !tbl and !d[v] then
-                if bt.isfunction(v) then
-                    d[v] = true
-                    tbl = findqtginre(v,d)
-                elseif bt.istable(v) then
-                    d[v] = true
+            for i=3,1/0,1 do
+                if !bt.debug_getinfo(i,'f') then break end
 
-                    for k2,v2 in pairs(v) do
-                        if bt.isfunction(v2) then
-                            tbl = findqtginre(v2,d)
+                for j=1,1/0,1 do
+                    local k,v = bt.debug_getlocal(i,j)
+                    if !k then break end
 
-                            if tbl then
-                                return tbl
-                            end
-                        end
+                    if v == nil then
+                        v = 0
                     end
+
+                    t[k] = v
                 end
             end
-
-            if tbl then
-                return tbl
-            end
         end
+
+        ofunction(timer,'Simple',function(t,fn)
+            if t and bt.isfunction(fn) then
+                add(fn)
+
+                bt.timer_Simple(t+0.5,function()
+                    upvaluebank[fn] = nil
+                end)
+            end
+        end)
+
+        ofunction(timer,'Create',function(name,t,r,fn)
+            if name and bt.isfunction(fn) then
+                add(name)
+            end
+        end)
     end
 
     ofunction(ents,'Create',function(classname,...)
@@ -760,21 +773,53 @@ if SERVER then
 
             local tbl
 
-            for i=2,1/0,1 do
+            for i=3,1/0,1 do
                 if tbl then break end
 
-                local d = bt.debug_getinfo(i,'f')
+                local d = bt.debug_getinfo(i)
                 if !d then break end
 
                 local func = d.func
                 if !func then break end
 
-                tbl = findqtginre(func)
+                for i=1,1/0,1 do
+                    if tbl then break end
+
+                    local k,v = bt.debug_getupvalue(func,i)
+                    if !k then break end
+
+                    if v then
+                        tbl = isqtginre[v]
+
+                        if !tbl then
+                            local t = upvaluebank[func] 
+
+                            if t then
+                                for k,v in bt.next,t do
+                                    if tbl then break end
+
+                                    if bt.istable(v) then
+                                        for k2,v2 in bt.next,v do
+                                            if isqtginre[k2] or isqtginre[v2] then
+                                                bt.rawset(v,k2,nil)
+                                                break
+                                            end
+                                        end
+                                    else
+                                        tbl = isqtginre[v]
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
             end
 
             if tbl then
                 entblock[ent] = true
                 isqtginre[ent] = tbl
+
+                bt.eSetKeyValue(ent,'classname','..')
 
                 local meta = table_copy(bt.getmetatable(ent))
                 local old = meta.__index or pass
@@ -917,7 +962,7 @@ waitfor('scripted_ents',function(scripted_ents)
             local func = e.IsNPC
 
             if bt.isfunction(func) and func(e) and bt.nGetNPCState(e) != bt.NPC_STATE_DEAD then
-                return true
+                return true,true
             end
         end
 
@@ -1359,7 +1404,7 @@ waitfor('scripted_ents',function(scripted_ents)
         end)
 
         bt.eAddEFlags(self,bt.EFL_NO_DISSOLVE+bt.EFL_CHECK_UNTOUCH)
-        bt.eAddFlags(self,bt.FL_DISSOLVING)
+        bt.eAddFlags(self,bt.FL_DISSOLVING+bt.FL_OBJECT)
 
         if CLIENT then return end
 
@@ -1670,10 +1715,18 @@ waitfor('scripted_ents',function(scripted_ents)
             if ispacifist() then return end
 
             for k,v in bt.next,bt.ents_GetAll() do
-                if v != self and isentitygood(v) then
-                    set(self,'Enemy',v)
+                if v != self then
+                    local isgood,isnpc = isentitygood(v)
 
-                    return true
+                    if isgood then
+                        if isnpc then
+                            bt.nAddEntityRelationship(v,self,bt.D_HT,99)
+                        end
+
+                        set(self,'Enemy',v)
+
+                        return true
+                    end
                 end
             end	
 
