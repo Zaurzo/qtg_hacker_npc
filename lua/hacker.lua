@@ -1,33 +1,28 @@
 -- This is a tribute to Neptune QTG.
-
--- Note to people who are looking at this file:
--- Please do not copy and paste code from here, it could break a lot of things if used incorrectly!
---     ~Zaurzo
+--
+-- If you do not know what you're doing, please do not copy and paste code from this file. 
+-- Created by Zaurzo
 
 AddCSLuaFile()
 
-local n = FindMetaTable('NPC')
+-- Craig really likes waffles.
+
 local e = FindMetaTable('Entity')
 local p = FindMetaTable('Player')
-local v = FindMetaTable('Vector')
 local c = FindMetaTable('ConVar')
 local x = FindMetaTable('NextBot')
-local o = FindMetaTable('PhysObj')
-local t = FindMetaTable('PathFollower')
 local l = FindMetaTable('CLuaLocomotion')
-local d = FindMetaTable('CTakeDamageInfo')
 
 local bt = {}
 local isqtg = {}
 local ishitbox = {}
 local isqtginre = {}
 
-local LUA_INCLUDES = LUA_INCLUDES
-local SERVER = SERVER
-local CLIENT = CLIENT
-
 local classname1 = '^!@$!@$!%$@$qsfqtsff!$@%!@$sfrq'
 local classname2 = 'wgduw&!%@^!%@qosi&!%@^%!@{qsh!}'
+
+local SERVER = SERVER
+local CLIENT = CLIENT
 
 local function ishacker(e,hitbox)
     if !e or !bt.isentity(e) or !bt.eIsValid(e) then return false end
@@ -64,6 +59,10 @@ local function newstr()
 end
 
 local function add(t,k)
+    if isstring(t) then
+        t = FindMetaTable(t)
+    end
+
     if !t then return end
 
     for k2,v in pairs(t) do
@@ -76,15 +75,9 @@ local function add(t,k)
 end
 
 add(e,'e')
-add(p,'p')
 add(x,'x')
 add(l,'l')
-add(o,'o')
-add(d,'d')
-add(v,'v')
 add(c,'c')
-add(n,'n')
-add(t,'t')
 add(_G,'')
 add(bit,'bit_')
 add(net,'net_')
@@ -96,6 +89,13 @@ add(debug,'debug_')
 add(timer,'timer_')
 add(string,'string_')
 add(coroutine,'coroutine_')
+
+add('NPC','n')
+add('Player','p')
+add('Vector','v')
+add('PhysObj','o')
+add('PathFollower','f')
+add('CTakeDamageInfo','d')
 
 local funcsave = {}
 local protected = {}
@@ -114,7 +114,6 @@ protect(funcoverlay)
 protect(isqtg)
 protect(ishitbox)
 protect(isqtginre)
-protect(LUA_INCLUDES)
 
 local function ofunction(tbl,k,func)
     if !tbl then return end
@@ -145,8 +144,6 @@ local function ofunction(tbl,k,func)
     funcsave[old] = new
     funcoverlay[new] = old
 end
-
-protect(ofunction)
 
 local function ofunc(t,k)
     local old = t[k]
@@ -275,8 +272,6 @@ local function ofunc(tbl,k,isspawn,...)
         end
     end)
 end
-
-protect(ofunc)
 
 ofunc(e,'Remove')
 ofunc(e,'Input')
@@ -480,28 +475,6 @@ ofunction(e,'GetInternalVariable',function(self,k)
     end
 end)
 
-ofunction(_G,'Entity',function(...)
-    local e = bt.Entity(...)
-
-    if ishitbox[e] then
-        return e
-    end
-
-    if ishacker(e) then
-        local tbl = bt.eGetTable(e)
-
-        if tbl then
-            local h = tbl.Hitbox
-
-            if h and bt.eIsValid(h) then
-                return h
-            else
-                return bt.Entity(0)
-            end
-        end
-    end
-end)
-
 local varblock = {}
 
 local function add(s)
@@ -554,57 +527,6 @@ end
 ofunction(e,'__tostring',ofunc)
 ofunction(x,'__tostring',ofunc)
 
-local waitingfor = {}
-local _G = _G
-
-protect(waitingfor)
-
-local function waitfor(a,f)
-    if bt.string_sub(a,-4) != '.lua' then
-        local m = _G[a]
-
-        if bt.istable(m) then
-            f(m)
-        else
-            waitingfor[a] = f
-        end
-    else
-        waitingfor[a] = f
-    end
-end
-
-protect(waitfor)
-
-setmetatable(LUA_INCLUDES,{
-    __newindex = function(self,k,v)
-        local f = waitingfor[k]
-
-        if !f then return end
-
-        if bt.string_sub(k,-4) != '.lua' then
-            local m = _G[k]
-
-            if bt.istable(m) then
-                local pass, err = bt.pcall(f,m)
-
-                if !pass then
-                    bt.ErrorNoHaltWithStack(err..'\n')
-                end
-            end
-        else
-            local pass, err = bt.pcall(f)
-
-            if !pass then
-                bt.ErrorNoHaltWithStack(err..'\n')
-            end
-        end
-
-        waitingfor[k] = nil
-
-        bt.rawset(self,k,v)
-    end
-})
-
 local hooknames = {}
 local OnNPCKilled = nil
 
@@ -638,9 +560,19 @@ if SERVER then
             return false
         end
 
+        if ishacker(e,true) then
+            local OnTakeDamage = bt.rawget(bt.eGetTable(e) or {},'OnTakeDamage')
+
+            if OnTakeDamage then
+                OnTakeDamage(e,d)
+
+                return true
+            end
+        end
+
         local a = bt.dGetAttacker(d)
 
-        if ishacker(a) then
+        if ishacker(a,true) then
             return false
         end
     end)
@@ -650,40 +582,17 @@ if SERVER then
         if !GM then return end
 
         local old = GM.OnNPCKilled
+        if !old then return end
 
-        if old then
-            if !OnNPCKilled then
-                function OnNPCKilled(...)
-                    old(GM,...)
-                end
-            end
-
-            function GM:OnNPCKilled(e,...)
-                if !(e and isqtginre[e]) then
-                    return old(GM,e,...)
-                end
+        if !OnNPCKilled then
+            function OnNPCKilled(...)
+                old(GM,...)
             end
         end
 
-        local old = GM.PlayerDeath
-        if !old then return end
-
-        function GM:PlayerDeath(p,i,a,...)
-            if ishacker(a) then
-                p.NextSpawnTime = bt.CurTime() + 2
-                p.DeathTime = bt.CurTime()
-
-                player_manager.RunClass(p,'Death',i,a)
-
-                net.Start('PlayerKilled')
-                net.WriteEntity(p)
-                net.WriteString('qtg_hacker_npc')
-                net.WriteString('qtg_hacker_npc')
-                net.Broadcast()
-        
-                bt.MsgAll(p:Nick()..' was killed by Craig\n')
-            else
-                return old(GM,p,i,a,...)
+        function GM:OnNPCKilled(e,...)
+            if !(e and isqtginre[e]) then
+                return old(GM,e,...)
             end
         end
     end)
@@ -695,12 +604,6 @@ add('PreRegisterSENT',function(t,classname)
     end
 end)
 
-local entblock
-local enttypes
-
-local ENT1 = {}
-local ENT2 = {}
-
 local function fixtable(self,ct)
     local t = bt.eGetTable(self)
     if !t then return end
@@ -710,150 +613,108 @@ local function fixtable(self,ct)
     end
 end
 
+local ENT1 = {}
+local ENT2 = {}
+
+local enttypes
+
 if SERVER then
-    entblock = {}
     enttypes = {}
 
     local old = ents.Create
-    local pass = function() end
+    local tailCallCaptures = bt.setmetatable({}, {__mode = 'k'})
 
-    local upvaluebank do
-        upvaluebank = {}
+    protect(tailCallCaptures)
 
-        local function add(name)
-            local t = upvaluebank[name]
+    local function captureTailCallUpvalues(fn)
+        if !bt.isfunction(fn) then return end
 
-            if !t then
-                t = {}
-                upvaluebank[name] = t
+        for i=4,1/0,1 do
+            if !bt.debug_getinfo(i,'f') then break end
+
+            for j=1,1/0,1 do
+                local k,v = bt.debug_getlocal(i,j)
+                if !k then break end
+
+                if bt.isentity(v) then
+                    local t = tailCallCaptures[fn]
+
+                    if !t then 
+                        t = {} 
+                        tailCallCaptures[fn] = t 
+                    end
+
+                    t[#t+1] = v
+                end
+            end
+        end
+    end
+
+    ofunction(timer,'Create',function(name,time,reps,fn)
+        captureTailCallUpvalues(fn)
+    end)
+
+    ofunction(timer,'Adjust',function(name,time,reps,fn)
+        captureTailCallUpvalues(fn)
+    end)
+
+    ofunction(timer,'Simple',function(time,fn)
+        captureTailCallUpvalues(fn)
+    end)
+
+    ofunction(ents,'Create',function(classname,...)
+        local returnNull
+
+        for i=3,1/0,1 do
+            if returnNull then break end
+
+            local f = bt.debug_getinfo(i,'f')
+            if !f then break end
+
+            f = f.func
+
+            local captures = f and tailCallCaptures[f]
+
+            if captures then
+                for i=1,#captures do
+                    local v = captures[i]
+
+                    if isqtginre[v] then
+                        returnNull = true
+                        --isqtginre[v] = nil
+
+                        break
+                    end
+                end
             end
 
-            for i=3,1/0,1 do
-                if !bt.debug_getinfo(i,'f') then break end
-
+            if !returnNull then
                 for j=1,1/0,1 do
                     local k,v = bt.debug_getlocal(i,j)
                     if !k then break end
 
-                    if v == nil then
-                        v = 0
-                    end
+                    if v then 
+                        if isqtginre[v] then
+                            returnNull = true
+                            --isqtginre[v] = nil
 
-                    t[k] = v
+                            break
+                        end
+                    end
                 end
             end
         end
 
-        ofunction(timer,'Simple',function(t,fn)
-            if t and bt.isfunction(fn) then
-                add(fn)
+        if returnNull then
+            return old(newstr()..newstr(), ...)
+        end
 
-                bt.timer_Simple(t+0.5,function()
-                    upvaluebank[fn] = nil
-                end)
-            end
-        end)
-
-        ofunction(timer,'Create',function(name,t,r,fn)
-            if name and bt.isfunction(fn) then
-                add(name)
-            end
-        end)
-    end
-
-    ofunction(ents,'Create',function(classname,...)
         local ent = old(classname,...)
 
-        if bt.eIsValid(ent) then 
-            if ishacker(ent) then
-                fixtable(ent,ENT2)
+        if bt.eIsValid(ent) and ishacker(ent) then 
+            fixtable(ent,ENT2)
                 
-                bt.eSetName(ent,'')
-            end
-
-            local tbl
-
-            for i=3,1/0,1 do
-                if tbl then break end
-
-                local d = bt.debug_getinfo(i)
-                if !d then break end
-
-                local func = d.func
-                if !func then break end
-
-                for i=1,1/0,1 do
-                    if tbl then break end
-
-                    local k,v = bt.debug_getupvalue(func,i)
-                    if !k then break end
-
-                    if v then
-                        tbl = isqtginre[v]
-
-                        if !tbl then
-                            local t = upvaluebank[func] 
-
-                            if t then
-                                for k,v in bt.next,t do
-                                    if tbl then break end
-
-                                    if bt.istable(v) then
-                                        for k2,v2 in bt.next,v do
-                                            if isqtginre[k2] or isqtginre[v2] then
-                                                bt.rawset(v,k2,nil)
-                                                break
-                                            end
-                                        end
-                                    else
-                                        tbl = isqtginre[v]
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-
-            if tbl then
-                entblock[ent] = true
-                isqtginre[ent] = tbl
-
-                bt.eSetKeyValue(ent,'classname','..')
-
-                local meta = table_copy(bt.getmetatable(ent))
-                local old = meta.__index or pass
-
-                meta.__index = function(self,k,...)
-                    local v = old(self,k,...)
-
-                    if v == nil then
-                        v = tbl[k]
-                    end
-
-                    if v != nil and bt.isfunction(v) then
-                        return function(...)
-                            local rets = {bt.pcall(v,...)}
-                
-                            if rets[1] then
-                                return bt.unpack(rets,2)
-                            end
-                        end
-                    end
-
-                    return v
-                end
-
-                bt.debug_setmetatable(ent,meta)
-
-                local t = bt.eGetTable(ent) or {}
-
-                bt.rawset(t,'Initialize',pass)
-                bt.rawset(t,'OnRemove',pass)
-                bt.rawset(t,'Think',pass)
-
-                bt.eRemove(ent)
-            end
+            bt.eSetName(ent,'')
         end
 
         return ent
@@ -863,7 +724,7 @@ end
 local currenthookfunc = nil
 local hook = _G.hook
 
-local function rephook()
+local function fix_hookCall()
     if !hook then
         hook = _G.hook
     end
@@ -874,18 +735,6 @@ local function rephook()
     if !old or currenthookfunc == old then return end
 
     local function hook_Call(e,t,...)
-        if SERVER then
-            local args = {...}
-
-            for i=1,#args do
-                local v = args[i]
-
-                if v and entblock[v] then
-                    return
-                end
-            end
-        end
-
         if e then
             local func = hooknames[e]
 
@@ -905,11 +754,16 @@ local function rephook()
     hook.Call = hook_Call
 end
 
+local map = game.GetMap()
 local skillset
+
+local sql_Query = sql.Query
 local player_GetAll = player.GetAll
 local navmesh_IsLoaded = SERVER and navmesh.IsLoaded
 
-waitfor('scripted_ents',function(scripted_ents)
+local getDriver = FindMetaTable('Vehicle').GetDriver
+
+timer.Simple(0,function()
     if SERVER then
         local old = scripted_ents.Get
 
@@ -927,8 +781,6 @@ waitfor('scripted_ents',function(scripted_ents)
             return t
         end
     end
-
-    rephook()
 
     local register = scripted_ents.Register
     local ispacifist
@@ -1048,11 +900,11 @@ waitfor('scripted_ents',function(scripted_ents)
 
     local OVERLAY_BUDDHA_MODE = 33554432
     local damagetype = bt.bit_bor(DMG_BLAST,DMG_AIRBOAT,DMG_DIRECT,DMG_ALWAYSGIB)
-
+    
     local function hkill(self,e,force)
         if !bt.eIsValid(e) or ishacker(e,true) or isqtginre[e] then return end
 
-        rephook()
+        fix_hookCall()
         fixvalid()
 
         local eisplayer = e:IsPlayer()
@@ -1074,19 +926,19 @@ waitfor('scripted_ents',function(scripted_ents)
 
             if veh and bt.eIsValid(veh) then
                 bt.pExitVehicle(e)
-
+    
                 local phys = bt.eGetPhysicsObject(veh)
-
+    
                 if phys and bt.oIsValid(phys) then
                     bt.oSetVelocity(phys,force)
                 end
-
+    
                 local sound = 'physics/metal/metal_sheet_impact_hard'..bt.math_random(6,8)..'.wav'
-
+    
                 for i=1,6 do
                     bt.eEmitSound(veh,sound)
                 end
-
+    
                 bt.eTakeDamage(veh,1/0,self,self)
             end
 
@@ -1124,10 +976,6 @@ waitfor('scripted_ents',function(scripted_ents)
                 bt.eRemove(e)
 
                 if OnNPCKilled then
-                    local repclassname = 'qtginre_'..bt.eGetClass(e)
-
-                    bt.eSetKeyValue(e,'classname',repclassname)
-
                     OnNPCKilled(e,self,self)
                 end
             end
@@ -1179,6 +1027,7 @@ waitfor('scripted_ents',function(scripted_ents)
         'Male 07',
         'Valve',
         'Gabe Newell',
+        'me',
         ''
     }
 
@@ -1480,10 +1329,10 @@ waitfor('scripted_ents',function(scripted_ents)
             if navmesh_IsLoaded() then
                 local path = bt.Path('Follow')
 
-                bt.tCompute(path,self,pos)
+                bt.fCompute(path,self,pos)
 
-                if bt.tIsValid(path) then
-                    local segments = bt.tGetAllSegments(path)
+                if bt.fIsValid(path) then
+                    local segments = bt.fGetAllSegments(path)
 
                     if segments then
                         local goal = segments[2]
@@ -1576,22 +1425,6 @@ waitfor('scripted_ents',function(scripted_ents)
 
             bt.eSetEyeTarget(self,stareat)
 
-            if h and bt.eIsValid(h) then
-                bt.eAddEFlags(h,bt.EFL_KEEP_ON_RECREATE_ENTITIES)
-
-                local a,b = bt.eGetCollisionBounds(h)
-
-                for k,v in bt.next,bt.ents_FindInBox(pos+a,pos+b) do
-                    if v ~= self then
-                        local p = bt.eGetPhysicsObject(v)
-
-                        if v ~= h and v ~= self and p and bt.oIsValid(p) then
-                            bt.oSetVelocity(p,(bt.eGetPos(v) - bt.eGetPos(self)) * (bt.eIsRagdoll(v) and 50 or 25))
-                        end
-                    end
-                end
-            end
-
             local hat = get(self,'Hat')
 
             if hat and bt.eIsValid(hat) then
@@ -1600,6 +1433,22 @@ waitfor('scripted_ents',function(scripted_ents)
 
             local e = get(self,'Enemy')
             local hasEnemy = e and bt.eIsValid(e)
+
+            if h and bt.eIsValid(h) then
+                bt.eAddEFlags(h,bt.EFL_KEEP_ON_RECREATE_ENTITIES)
+
+                local a,b = bt.eGetCollisionBounds(h)
+
+                for k,v in bt.next,bt.ents_FindInBox(pos+a,pos+b) do
+                    if v ~= self then   
+                        local p = bt.eGetPhysicsObject(v)
+
+                        if v ~= h and v ~= self and p and bt.oIsValid(p) then
+                            bt.oSetVelocity(p,(bt.eGetPos(v) - bt.eGetPos(self)) * (bt.eIsRagdoll(v) and 50 or 25))
+                        end
+                    end
+                end
+            end
 
             if hasEnemy then
                 if !e:IsPlayer() and !isentitygood(e) then
@@ -1677,6 +1526,15 @@ waitfor('scripted_ents',function(scripted_ents)
                         bt.eEmitSound(self,sound)
                     end
                 elseif dist < 0.5 then
+                    if bt.type(e) == 'Player' then
+                        local veh = bt.pGetVehicle(e)
+
+                        if veh and bt.eIsValid(veh) then
+                            bt.pExitVehicle(e)
+                            bt.eSetPos(e,bt.eGetPos(self))
+                        end
+                    end
+
                     local notOnFire = !bt.eIsOnFire(e)
 
                     bt.eIgnite(e,1e9)
@@ -1771,7 +1629,7 @@ waitfor('scripted_ents',function(scripted_ents)
 
         local down = bt.Vector(0,0,1e9)
 
-        function ENT2:FireAnimationEvent(...)
+        function ENT2:FireAnimationEvent(a,b,c,d)
             local pos = bt.eGetPos(self)
             local tr = bt.util_TraceLine({
                 start = pos,
@@ -1794,9 +1652,7 @@ waitfor('scripted_ents',function(scripted_ents)
     end
 
     register(table_copy(ENT2),classname1)
-end)
 
-waitfor('list',function(list)
     list.Set('NPC',classname1,{
         Name = 'QTG Hacker NPC',
         Class = classname1,
@@ -1804,13 +1660,6 @@ waitfor('list',function(list)
         AdminOnly = true,
         IconOverride = 'entities/qtg_hacker_npc.png',
     })
-end)
-
-local sql_Query = sql.Query
-local map = game.GetMap()
-
-waitfor('extensions/coroutine.lua',function()
-    rephook()
 
     if CLIENT then return end
 
@@ -1873,9 +1722,7 @@ waitfor('extensions/coroutine.lua',function()
 
         cookie(true)
     end)
-end)
 
-waitfor('concommand',function(concommand)
     concommand.Add('qtg_hacker_removeall',function(p)
         if bt.debug_getinfo(3,'f') then return end
 
@@ -2012,110 +1859,30 @@ if CLIENT then
     end)
 
     local add = language.Add
-    local gmod_GetGamemode = gmod.GetGamemode
-    local language_GetPhrase = language.GetPhrase
-
-    local currentfunc
-    local GM
 
     bt.timer_Create(newstr(),0,0,function()
         add('qtg_hacker_npc',newstr())
-
-        if !GM then
-            GM = gmod_GetGamemode()
-        end
-
-        if !GM then return end
-
-        local old = GM.AddDeathNotice
-        if !old or currentfunc == old then return end
-
-        local function AddDeathNotice(self,a,b,c,d,...)
-            if bt.isstring(d) and bt.string_find(d,'qtginre_') then
-                d = bt.string_sub(d,10)
-
-                local data = list.Get('NPC')[d]
-
-                if data and data.Name then
-                    d = data.Name
-                else
-                    d = language_GetPhrase(d)
-                end
-            end
-
-            return old(self,a,b,c,d,...)
-        end
-
-        GM.AddDeathNotice = AddDeathNotice
-        currentfunc = AddDeathNotice
     end)
 end
 
-local watchhook = true
-local lastargs = nil
+local jit_attach = jit.attach
+local cache = {}
 
-local debug_sethook = debug.sethook
-local masksearch = '[crl]'
-local masknames = {
-    ['tail call'] = 'c',
-    ['return'] = 'r',
-    ['line'] = 'l',
-    ['call'] = 'c'
-}
-
-ofunction(debug,'sethook',function(...)
-    if !watchhook then return end
-
-    local args = {...}
-    lastargs = args
-
-    if args[1] == nil then
-        args = {rephook,'l'}
-    else
-        local a = 1
-        local func = args[a]
-
-        if bt.type(func) == 'thread' then
-            a = 2
-            func = args[a]
-        end
-
-        local b = a+1
-        local mask = args[b]
-
-        if bt.isfunction(func) and bt.isstring(mask) then
-            if !bt.string_find(mask,masksearch) then
-                args[a] = rephook
-                args[b] = 'l'
-            else
-                args[a] = function(name,...)
-                    rephook()
-
-                    if !name or name == 'count' then
-                        return func(name,...)
-                    end
-
-                    local initial = masknames[name]
-
-                    if initial and bt.string_find(mask,initial) then
-                        return func(name,...)
-                    end
-                end
-
-                if !bt.string_find(mask,'l') then
-                    args[b] = mask..'l'
-                end
-            end
-        end
+ofunction(jit,'attach',function(fn,s,...)
+    if (fn and !s) and (fn == fix_hookCall or cache[fn]) then
+        return -1,jit_attach(fix_hookCall,'bc')
     end
 
-    return -1
+    if s == 'bc' and fn and bt.isfunction(fn) then
+        local new = cache[fn] or function(...)
+            fix_hookCall()
+            return fn(...)
+        end
+
+        cache[fn] = new
+
+        return -1,jit_attach(new,s,...)
+    end
 end)
 
-debug_sethook(rephook,'l')
-
-bt.timer_Simple(0,function()
-    debug_sethook(bt.unpack(lastargs or {}))
-
-    watchhook = nil
-end)
+jit_attach(fix_hookCall, 'bc')
