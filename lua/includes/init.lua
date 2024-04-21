@@ -1,31 +1,4 @@
-local includes = {}
-local unpack = unpack
-
-local function include(f, ...)
-	local r = {_G.include(f, ...)}
-
-	includes[f] = true
-
-	if r[1] != nil then
-		return unpack(r)
-	end
-end
-
-local function require(name, ...)
-	local r = {_G.require(name, ...)}
-
-	includes[name] = true
-
-	if r[1] != nil then
-		return unpack(r)
-	end
-end
-
-LUA_INCLUDES = includes
-
 include('hacker.lua')
-
-LUA_INCLUDES = nil
 
 local f = file.Open('lua/includes/init.lua', 'rb', 'MOD')
 
@@ -33,32 +6,30 @@ if f then
 	local str = f:Read(f:Size())
 	f:Close()
 
+	-- Run original includes/init.lua
 	if str then
-		str = 'local include,require=...\n\n' .. str
-
-		local func = CompileString(str, 'lua/includes/init.lua')
-		
-		if func then
-			return func(include, require)
-		end
+		return RunString(str, 'lua/includes/init.lua')
 	end
 end
 
 -- Temporary hack
 local meta = {}
-function meta.__index(self, key)
-	return FindMetaTable(key)
+function meta.__index( self, key )
+	return FindMetaTable( key )
 end
 
 local metas = {}
-function meta.__newindex(self, key, value)
-	metas[ key ] = value
+function meta.__newindex( self, key, value )
+	rawset( self, key, value )
+
+	if ( isstring( key ) and istable( value ) ) then
+		metas[ key ] = value
+	end
 end
 
+local tbl = {}
+setmetatable( tbl, meta )
 debug.getregistry = function()
-	local tbl = {}
-	setmetatable(tbl, meta)
-
 	return tbl
 end
 
