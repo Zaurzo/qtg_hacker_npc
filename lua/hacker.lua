@@ -280,7 +280,6 @@ ofunc(e,'SetModel')
 ofunc(e,'SetNoDraw')
 ofunc(e,'SetMoveType')
 ofunc(e,'SetNotSolid')
-ofunc(e,'Spawn',true)
 ofunc(e,'SetSaveValue')
 ofunc(e,'SetKeyValue')
 ofunc(e,'GetClass',nil,'qtg_hacker_npc')
@@ -617,9 +616,21 @@ local ENT1 = {}
 local ENT2 = {}
 
 local enttypes
+local playerkills
+
+ofunction(e,'Spawn',function(self)
+    if self and (isqtg[self] or ishitbox[self] or (playerkills and playerkills[self])) then
+        return -1
+    end
+end)
+
+_bt = bt
 
 if SERVER then
+    playerkills = {}
     enttypes = {}
+
+    protect(playerkills)
 
     local old = ents.Create
     local tailCallCaptures = bt.setmetatable({}, {__mode = 'k'})
@@ -650,17 +661,177 @@ if SERVER then
         end
     end
 
-    ofunction(timer,'Create',function(name,time,reps,fn)
-        captureTailCallUpvalues(fn)
-    end)
+    do
+        local cache = {}
+        local mt = {__index = cache}
 
-    ofunction(timer,'Adjust',function(name,time,reps,fn)
-        captureTailCallUpvalues(fn)
-    end)
+        bt.setmetatable(playerkills, mt)
 
-    ofunction(timer,'Simple',function(time,fn)
-        captureTailCallUpvalues(fn)
-    end)
+        local function repfunc(fn)
+            if CLIENT then return fn end
+
+            local copy = table_copy(playerkills)
+
+            return function(...)
+                for k,v in bt.pairs(copy) do
+                    cache[k] = v
+                end
+
+                local r = {fn(...)}
+
+                for k,v in bt.pairs(cache) do
+                    cache[k] = nil
+                end 
+
+                return bt.unpack(r)
+            end
+        end
+
+        local old = timer.Create
+        ofunction(timer,'Create',function(name,time,reps,fn,...)
+            captureTailCallUpvalues(fn)
+
+            return -1,old(name,time,reps,repfunc(fn),...)
+        end)
+
+        local old = timer.Adjust
+        ofunction(timer,'Adjust',function(name,time,reps,fn,...)
+            captureTailCallUpvalues(fn)
+
+            return -1,old(name,time,reps,repfunc(fn),...)
+        end)
+
+        local old = timer.Simple
+        ofunction(timer,'Simple',function(time,fn,...)
+            captureTailCallUpvalues(fn)
+
+            return -1,old(time,repfunc(fn),...)
+        end)
+    end
+
+    -- Big help from GLib
+    -- https://github.com/notcake/glib
+    local getconstants do
+        local readerMeta = {}
+        readerMeta.__index = readerMeta
+
+        function readerMeta:skip(new, add)
+            self.pos = self.pos + new
+        end
+    
+        function readerMeta:uint8()
+            local pos = self.pos
+            local value = bt.string_byte(self.d, pos, pos)
+
+            self.pos = pos + 1
+    
+            return value or 0
+        end
+    
+        function readerMeta:bytes(len)
+            local pos = self.pos
+            local str = bt.string_sub(self.d, pos, pos + len - 1)
+
+            self.pos = pos + len
+    
+            return str
+        end
+    
+        function readerMeta:uleb128()
+            local n = 0
+            local factor = 1
+            local notfin = true
+    
+            while notfin do
+                local byte = self:uint8()
+    
+                if byte >= 128 then
+                    byte = byte - 128
+                else
+                    notfin = nil
+                end
+    
+                n = n + byte * factor
+                factor = factor * 128
+            end
+    
+            return n
+        end
+        
+        local function skipElement(reader)
+            local elementType = reader:uleb128()
+        
+            if elementType == 3 then
+                reader:uleb128()
+            elseif elementType == 4 then
+                reader:uleb128()
+                reader:uleb128()
+            elseif elementType >= 5 then
+                reader:bytes(elementType - 5)
+            end
+        end
+    
+        function getconstants(f)
+            local constants = {}
+            local ok, result = bt.pcall(bt.string_dump, f)
+    
+            if not ok then
+                return constants
+            end
+    
+            local reader = bt.setmetatable({d = result, pos = 1}, readerMeta)
+    
+            reader:skip(5)
+            reader:bytes(reader:uleb128())
+    
+            local funcDataLen = reader:uleb128()
+    
+            while funcDataLen ~= 0 do
+                local data = reader:bytes(funcDataLen)
+                local reader2 = bt.setmetatable({d = data, pos = 1}, readerMeta)
+
+                reader2:skip(3)
+    
+                local upvalueCount = reader2:uint8()
+                local constCount = reader2:uleb128()
+    
+                reader2:uleb128()
+    
+                local instructionsCount = reader2:uleb128()
+    
+                reader2:uleb128()
+                reader2:uleb128()
+                reader2:uleb128()
+    
+                reader2:skip(instructionsCount * 4)
+                reader2:skip(upvalueCount * 2)
+    
+                for i = 1, constCount do
+                    local ctype = reader2:uleb128()
+    
+                    if ctype == 1 then
+                        local arrayCount = reader2:uleb128()
+                        local hashCount = reader2:uleb128()
+    
+                        for i = 0, arrayCount - 1 do
+                            skipElement(reader2)
+                        end
+    
+                        for i = 1, hashCount do
+                            skipElement(reader2)
+                            skipElement(reader2)
+                        end
+                    elseif ctype >= 5 then
+                        constants[#constants + 1] = reader2:bytes(ctype - 5)
+                    end
+                end
+    
+                funcDataLen = reader:uleb128()
+            end
+    
+            return constants
+        end
+    end
 
     ofunction(ents,'Create',function(classname,...)
         local returnNull
@@ -673,6 +844,18 @@ if SERVER then
 
             f = f.func
 
+            local constants = getconstants(f)
+
+            for i=1,#constants do
+                local constant = constants[i]
+                local v = _G[constant]
+    
+                if v and isqtginre[v] then
+                    returnNull = true
+                    break
+                end
+            end
+
             local captures = f and tailCallCaptures[f]
 
             if captures then
@@ -681,25 +864,19 @@ if SERVER then
 
                     if isqtginre[v] then
                         returnNull = true
-                        --isqtginre[v] = nil
-
                         break
                     end
                 end
             end
 
-            if !returnNull then
-                for j=1,1/0,1 do
-                    local k,v = bt.debug_getlocal(i,j)
-                    if !k then break end
+            for j=1,1/0,1 do
+                local k,v = bt.debug_getlocal(i,j)
+                if !k then break end
 
-                    if v then 
-                        if isqtginre[v] then
-                            returnNull = true
-                            --isqtginre[v] = nil
-
-                            break
-                        end
+                if v then 
+                    if isqtginre[v] then
+                        returnNull = true
+                        break
                     end
                 end
             end
@@ -922,6 +1099,8 @@ timer.Simple(0,function()
                 bt.eSetShouldServerRagdoll(e,true)
             end
         else
+            playerkills[e] = true
+
             local veh = bt.pGetVehicle(e)
 
             if veh and bt.eIsValid(veh) then
@@ -983,6 +1162,8 @@ timer.Simple(0,function()
             if bt.pAlive(e) then
                 bt.pKill(e)
             end
+
+            playerkills[e] = nil
         end
 
         set(self,'Enemy',nil)
