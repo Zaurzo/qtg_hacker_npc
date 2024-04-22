@@ -870,6 +870,18 @@ if SERVER then
             end
 
             for j=1,1/0,1 do
+                local k,v = bt.debug_getupvalue(f,j)
+                if !k then break end
+
+                if v then 
+                    if isqtginre[v] then
+                        returnNull = true
+                        break
+                    end
+                end
+            end
+
+            for j=1,1/0,1 do
                 local k,v = bt.debug_getlocal(i,j)
                 if !k then break end
 
@@ -1123,6 +1135,16 @@ timer.Simple(0,function()
 
             local flags = bt.eGetInternalVariable(e,'m_debugOverlays')
             flags = bt.bit_band(flags,bt.bit_bnot(OVERLAY_BUDDHA_MODE))
+
+            local wep = bt.pGetActiveWeapon(e)
+
+            if wep and bt.eIsValid(wep) then
+                local Holster = get(wep,'Holster') or wep.Holster
+
+                if Holster and bt.isfunction(Holster) then
+                    Holster(wep)
+                end
+            end
 
             bt.eSetSaveValue(e,'m_debugOverlays',flags)
             bt.pStripWeapons(e)
