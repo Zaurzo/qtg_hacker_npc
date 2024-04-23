@@ -15,7 +15,6 @@ local l = FindMetaTable('CLuaLocomotion')
 
 local bt = {}
 local isqtg = {}
-local ishitbox = {}
 local isqtginre = {}
 
 local classname1 = '^!@$!@$!%$@$qsfqtsff!$@%!@$sfrq'
@@ -24,15 +23,11 @@ local classname2 = 'wgduw&!%@^!%@qosi&!%@^%!@{qsh!}'
 local SERVER = SERVER
 local CLIENT = CLIENT
 
-local function ishacker(e,hitbox)
+local function ishacker(e)
     if !e or !bt.isentity(e) or !bt.eIsValid(e) then return false end
 
     if isqtg[e] then
         return 1
-    end
-
-    if hitbox and ishitbox[e] then
-        return 2
     end
 
     local classname = bt.eGetClass(e)
@@ -112,7 +107,6 @@ protect(protected)
 protect(funcsave)
 protect(funcoverlay)
 protect(isqtg)
-protect(ishitbox)
 protect(isqtginre)
 
 local function ofunction(tbl,k,func)
@@ -251,7 +245,7 @@ local function ofunc(tbl,k,isspawn,...)
     local r = ... != nil and {...}
 
     ofunction(tbl,k,function(self,...)
-        local pass = isqtg[self] or ishitbox[self]
+        local pass = isqtg[self]
 
         if !pass and !isspawn then 
             if bt.isentity(self) and bt.eIsValid(self) then
@@ -354,19 +348,6 @@ ofunc(e,'EntIndex',nil,-1)
 ofunc(x,'StartActivity')
 ofunc(x,'PlaySequenceAndWait')
 ofunc(x,'BodyMoveXY')
-
-local function ofunc(t,k,r)
-    ofunction(t,k,function(self)
-        if self and (ishitbox[self] or (bt.isentity(self) and bt.eIsValid(self) and bt.eGetClass(self) == classname2)) then
-            return r
-        end
-    end)
-end
-
-ofunc(e,'IsNextBot',true)
-ofunc(_G,'getmetatable',x)
-ofunc(_G,'type','NextBot')
-ofunc(debug,'getmetatable',x)
 
 local function ofunc(self)
     if ishacker(bt.lGetNextBot(self)) then
@@ -505,6 +486,9 @@ add('m_RenderOrigin')
 add('speed')
 add('RandomPos')
 add('OnKilled')
+add('isbot')
+add('boxa')
+add('boxb')
 
 protect(varblock)
 
@@ -560,7 +544,7 @@ if SERVER then
         end
 
         if ishacker(e,true) then
-            local OnTakeDamage = bt.rawget(bt.eGetTable(e) or {},'OnTakeDamage')
+            local OnTakeDamage = bt.rawget(bt.eGetTable(e),'OnTakeDamage')
 
             if OnTakeDamage then
                 OnTakeDamage(e,d)
@@ -603,28 +587,16 @@ add('PreRegisterSENT',function(t,classname)
     end
 end)
 
-local function fixtable(self,ct)
-    local t = bt.eGetTable(self)
-    if !t then return end
-
-    for k,v in bt.next,ct do
-        bt.rawset(t,k,v)
-    end
-end
-
-local ENT1 = {}
-local ENT2 = {}
-
 local enttypes
 local playerkills
 
 ofunction(e,'Spawn',function(self)
-    if self and (isqtg[self] or ishitbox[self] or (playerkills and playerkills[self])) then
+    if self and (isqtg[self] or (playerkills and playerkills[self])) then
         return -1
     end
 end)
 
-_bt = bt
+local ENT = {}
 
 if SERVER then
     playerkills = {}
@@ -632,7 +604,6 @@ if SERVER then
 
     protect(playerkills)
 
-    local old = ents.Create
     local tailCallCaptures = bt.setmetatable({}, {__mode = 'k'})
 
     protect(tailCallCaptures)
@@ -833,6 +804,13 @@ if SERVER then
         end
     end
 
+    local old = ents.Create
+    local null
+
+    bt.timer_Simple(0.25,function()
+        null = old(newstr()..newstr())
+    end)
+
     ofunction(ents,'Create',function(classname,...)
         local returnNull
 
@@ -895,14 +873,20 @@ if SERVER then
         end
 
         if returnNull then
-            return old(newstr()..newstr(), ...)
+            return null or _G.NULL
         end
 
         local ent = old(classname,...)
 
         if bt.eIsValid(ent) and ishacker(ent) then 
-            fixtable(ent,ENT2)
-                
+            local t = bt.eGetTable(ent)
+
+            if t then
+                for k,v in bt.next,ENT do
+                    bt.rawset(t,k,v)
+                end
+            end
+            
             bt.eSetName(ent,'')
         end
 
@@ -1153,7 +1137,7 @@ timer.Simple(0,function()
         bt.eRemoveFlags(e,bt.FL_GODMODE)
 
         local d = bt.DamageInfo()
-        local h = get(self,'Hitbox')
+        local h = get(self,'bot')
 
         if h and !bt.eIsValid(h) then
             h = nil
@@ -1193,9 +1177,6 @@ timer.Simple(0,function()
 
     protect(hkill)
 
-    ENT1.Base = 'base_anim'
-    ENT1.DisableDuplicator = true
-
     local names = {
         ':P',
         'nothing',
@@ -1234,114 +1215,6 @@ timer.Simple(0,function()
         ''
     }
 
-    function ENT1:Initialize()
-        if ishitbox[self] or bt.eIsValid(bt.eGetParent(self)) then return end
-
-        ishitbox[self] = true
-
-        local name = names[bt.math_random(#names)]
-
-        if name == '' then
-            local players = player_GetAll()
-            local ply = players[bt.math_random(#players)]
-
-            if bt.eIsValid(ply) then
-                name = bt.pNick(ply)
-            end
-        end
-
-        if SERVER then
-            bt.eSetName(self,' ')
-        end
-
-        bt.eSetKeyValue(self,'classname',name..' ')
-        bt.eSetSolid(self,2)
-        bt.eSetModel(self,'models/error.mdl')
-        bt.eDrawShadow(self,false)
-        bt.eEnableCustomCollisions(self,true)
-
-        local meta = table_copy(bt.getmetatable(self))
-        local old = meta.__index
-
-        meta.__index = function(self,k)
-            local parent = bt.eGetParent(self)
-
-            if bt.eIsValid(parent) then
-                local v = get(parent,k)
-
-                if v != nil then
-                    if bt.isfunction(v) then
-                        return function(_,...)
-                            return v(parent,...)
-                        end
-                    else
-                        return v
-                    end
-                end
-            end
-
-            if old then
-                return old(self,k)
-            end
-        end
-
-        bt.debug_setmetatable(self,meta)
-    end
-
-    if SERVER then
-        function ENT1:OnTakeDamage(dmg)
-            if ispacifist() then return 0 end
-
-            local parent = bt.eGetParent(self)
-            if !bt.eIsValid(parent) then return end
-    
-            local a = bt.dGetAttacker(dmg)
-    
-            if bt.type(a) == 'Weapon' then
-                local owner = bt.eGetOwner(a)
-    
-                if bt.eIsValid(owner) then
-                    a = owner
-                end
-            end
-    
-            if get(parent,'Enemy') != a and bt.eIsValid(a) and bt.type(a) == 'Player' then 
-                set(parent,'Enemy',a)
-            end
-    
-            return 0
-        end
-
-        function ENT1:OnRemove()
-            ishitbox[self] = nil
-
-            local parent = bt.eGetParent(self)
-            local a,b = bt.eGetCollisionBounds(self)
-
-            bt.timer_Simple(0,function()
-                if !bt.eIsValid(parent) then return end
-
-                local e = bt.ents_Create(classname2)
-                if !bt.eIsValid(e) then return end
-
-                bt.eSetName(e,' ')
-
-                bt.eSetPos(e,bt.eGetPos(parent))
-                bt.eSetAngles(e,bt.eGetAngles(parent))
-                bt.eSpawn(e)
-                bt.eSetCollisionBounds(e,a,b)
-                bt.eSetParent(e,parent)
-
-                set(parent,'Hitbox',e)
-            end)
-        end
-    else
-        function ENT1:Draw()
-        end
-    end
-
-    register(table_copy(ENT1),classname2)
-
     local function cvar(a,b,d)
         if SERVER then
             return bt.CreateConVar(a,d or 0,FCVAR_ARCHIVE+FCVAR_PROTECTED,b)
@@ -1353,9 +1226,10 @@ timer.Simple(0,function()
     local laser = cvar('qtg_hacker_laser','Enables the laser ability for QTG Hacker NPCs',1)
     local pull = cvar('qtg_hacker_pull','Enables the ability to pull entities closer towards QTG Hacker NPCs',1)
 
-    ENT2.DisableDuplicator = true
-    ENT2.Base = 'base_nextbot'
-    ENT2.Type = 'nextbot'
+    ENT.AutomaticFrameAdvance = true
+    ENT.DisableDuplicator = true
+    ENT.Base = 'base_gmodentity'
+    ENT.Type = 'anim'
 
     local skilltimes,ability
 
@@ -1391,7 +1265,7 @@ timer.Simple(0,function()
                     end
                 }
 
-                local h = get(self,'Hitbox')
+                local h = get(self,'bot')
         
                 if h and bt.eIsValid(h) then
                     bt.eFireBullets(h,laser)
@@ -1443,7 +1317,7 @@ timer.Simple(0,function()
 
     local vector_up = bt.Vector(0, 0, 1)
 
-    function ENT2:Initialize()
+    function ENT:Initialize()
         isqtg[self] = true
 
         bt.eSetModel(self,'models/Humans/Group01/male_09.mdl')
@@ -1460,31 +1334,19 @@ timer.Simple(0,function()
 
         if CLIENT then return end
 
+        bt.eSetKeyValue(self,'classname','worldspawn')
+
         skilltimes[self] = bt.CurTime() + bt.math_random(8)
 
         set(self,'speed',2)
 
         local a,b = bt.eGetCollisionBounds(self)
 
-        bt.lSetStepHeight(self.loco,50)
+        set(self,'boxa',a)
+        set(self,'boxb',b)
+
         bt.eSetCollisionGroup(self,10)
         bt.eSetCollisionBounds(self,bt.Vector(-1,-1,1/0),bt.Vector(1,1,1/0))
-
-        local h = get(self,'Hitbox')
-        if h and bt.eIsValid(h) then return end
-
-        local e = bt.ents_Create(classname2)
-
-        if bt.eIsValid(e) then
-            fixtable(e,ENT1)
-
-            bt.eSetPos(e,bt.eGetPos(self))
-            bt.eSpawn(e)
-            bt.eSetCollisionBounds(e,a,b)
-            bt.eSetParent(e,self)
-
-            set(self,'Hitbox',e)
-        end
 
         local hat = bt.ents_Create('prop_dynamic')
 
@@ -1502,37 +1364,50 @@ timer.Simple(0,function()
                 bt.eRemove(hat)
             end
         end
+
+        local name = newstr()..newstr()..'_brain'
+
+        bt.timer_Create(name, 0, 0, function()
+            local valid = bt.eIsValid(self)
+            local hackerThink = valid and get(self,'HackerThink')
+
+            if !valid or !hackerThink then
+                bt.timer_Remove(name)
+                return
+            end
+    
+            hackerThink(self)
+        end)
     end
 
     if SERVER then
         local approaches = {}
 
-        function ENT2:OnKilled() end
-        function ENT2:KeyValue() end
+        function ENT:OnKilled() end
+        function ENT:KeyValue() end
 
-        function ENT2:OnRemove()
+        function ENT:OnRemove()
             isqtg[self] = nil
             approaches[self] = nil
         end
 
-        function ENT2:OnTakeDamage()
+        function ENT:OnTakeDamage()
             return 0
         end
 
-        function ENT2:AcceptInput()
+        function ENT:AcceptInput()
             return true
         end
 
-        local function approach(self,pos)
-            local h = get(self,'Hitbox')
-            if !h or !bt.eIsValid(h) then return end
+        local function approach(self,pos,bot)
+            if !bot or !bt.eIsValid(bot) then return end
 
             local pos1 = approaches[self]
 
             if navmesh_IsLoaded() then
                 local path = bt.Path('Follow')
 
-                bt.fCompute(path,self,pos)
+                bt.fCompute(path,bot,pos)
 
                 if bt.fIsValid(path) then
                     local segments = bt.fGetAllSegments(path)
@@ -1553,14 +1428,14 @@ timer.Simple(0,function()
             if !pos1 then return end
 
             local pos2 = bt.eGetPos(self)
-
             local direct = bt.vGetNormalized(pos1 - pos2)
+
             local pos3 = pos2 + direct * self.speed
 
             local tr = bt.util_TraceLine({
                 start = pos3 + bt.Vector(0, 0, 100),
                 endpos = pos3 - bt.Vector(0, 0, 1e9),
-                filter = {self,get(self,'Hitbox')}
+                filter = bot
             })
 
             local pos4 = tr.Hit and tr.HitPos or pos3
@@ -1605,7 +1480,74 @@ timer.Simple(0,function()
             return pos
         end
 
-        function ENT2:Think()
+        local setupBot do
+            local function onTakeDamage(self,dmg)
+                if ispacifist() then return 0 end
+    
+                local parent = bt.eGetParent(self)
+                if !bt.eIsValid(parent) then return end
+        
+                local a = bt.dGetAttacker(dmg)
+        
+                if bt.type(a) == 'Weapon' then
+                    local owner = bt.eGetOwner(a)
+        
+                    if bt.eIsValid(owner) then
+                        a = owner
+                    end
+                end
+        
+                if get(parent,'Enemy') != a and bt.eIsValid(a) and bt.type(a) == 'Player' then 
+                    set(parent,'Enemy',a)
+                end
+        
+                return 0
+            end
+
+            local pass = function() end
+
+            function setupBot(self)
+                local bot = bt.ents_Create('base_nextbot')
+                if !bt.eIsValid(bot) then return end
+
+                isqtg[bot] = true
+            
+                bt.eSetPos(bot,self:GetPos())
+                bt.eSpawn(bot)
+                bt.eSetParent(bot,self)
+                bt.eSetNoDraw(bot,true)
+                bt.eSetCollisionBounds(bot,get(self,'boxa'),get(self,'boxb'))
+
+                set(bot,'isbot',true)
+                set(bot,'OnTakeDamage',onTakeDamage)
+                set(bot,'BehaveUpdate',pass)
+                set(bot,'OnKilled',pass)
+                set(bot,'BehaveStart',pass)
+
+                return bot
+            end
+        end
+
+        function ENT:Think()
+            bt.eNextThink(self,bt.CurTime())
+            return true
+        end
+
+        function ENT:HackerThink()
+            local bot = get(self,'bot')
+
+            if not bot or not bt.eIsValid(bot) then
+                bot = setupBot(self)
+        
+                bot:SetPos(self:GetPos())
+                bot:Spawn()
+                bot:SetParent(self)
+                bot:SetNoDraw(true)
+                bot:SetCollisionBounds(get(self,'boxa'),get(self,'boxb'))
+        
+                set(self,'bot',bot)
+            end
+
             local pullent = get(self,'pull')
 
             if pullent then
@@ -1619,10 +1561,9 @@ timer.Simple(0,function()
                 end
             end
 
-            bt.eSetKeyValue(self,'classname',newstr()..'\n')
+            --bt.eSetKeyValue(self,'classname',newstr()..'\n')
             bt.eAddEFlags(self,bt.EFL_KEEP_ON_RECREATE_ENTITIES)
 
-            local h = get(self,'Hitbox')
             local pos = bt.eGetPos(self)
             local stareat = pos + vector_up * 60 + bt.eGetForward(self) * 100
 
@@ -1637,18 +1578,16 @@ timer.Simple(0,function()
             local e = get(self,'Enemy')
             local hasEnemy = e and bt.eIsValid(e)
 
-            if h and bt.eIsValid(h) then
-                bt.eAddEFlags(h,bt.EFL_KEEP_ON_RECREATE_ENTITIES)
+            bt.eAddEFlags(bot,bt.EFL_KEEP_ON_RECREATE_ENTITIES)
 
-                local a,b = bt.eGetCollisionBounds(h)
+            local a,b = bt.eGetCollisionBounds(bot)
 
-                for k,v in bt.next,bt.ents_FindInBox(pos+a,pos+b) do
-                    if v ~= self then   
-                        local p = bt.eGetPhysicsObject(v)
+            for k,v in bt.next,bt.ents_FindInBox(pos+a,pos+b) do
+                if v ~= self then   
+                    local p = bt.eGetPhysicsObject(v)
 
-                        if v ~= h and v ~= self and p and bt.oIsValid(p) then
-                            bt.oSetVelocity(p,(bt.eGetPos(v) - bt.eGetPos(self)) * (bt.eIsRagdoll(v) and 50 or 25))
-                        end
+                    if v ~= h and v ~= self and p and bt.oIsValid(p) then
+                        bt.oSetVelocity(p,(bt.eGetPos(v) - bt.eGetPos(self)) * (bt.eIsRagdoll(v) and 50 or 25))
                     end
                 end
             end
@@ -1662,13 +1601,42 @@ timer.Simple(0,function()
                     bt.eResetSequence(self,12)
                     bt.eSetPlaybackRate(self,get(self,'speed')/6)
 
-                    local ok,msg = approach(self,bt.eGetPos(e))
+                    local ok,msg = approach(self,bt.eGetPos(e),bot)
 
                     if !ok and msg == 'noworld' then
                         bt.eSetPos(e,bt.eGetPos(self))
                     end
 
                     set(self,'speed',math_clamp(get(self,'speed')+0.4,0,25))
+                end
+
+                local pos2 = bt.eGetPos(e)
+                local ln2DSqr = bt.vLength2DSqr(pos2-pos)
+                local diff = pos2.z - pos.z
+
+                if ln2DSqr <= 90000 and diff >= 80 and bt.cGetBool(pull) then
+                    set(self,'pull',e)
+                end
+
+                if ln2DSqr <= 100000 then
+                    if bt.type(e) == 'Player' then
+                        local veh = bt.pGetVehicle(e)
+                
+                        if veh and bt.eIsValid(veh) then
+                            bt.pExitVehicle(e)
+                            bt.eSetPos(e,bt.eGetPos(self))
+                        end
+                    end
+                end
+
+                if bt.vDistance(pos,pos2) / 1000 < 0.1 then
+                    hkill(self,e)
+
+                    local sound = bt.string_format('physics/body/body_medium_impact_hard%s.wav',bt.math_random(6))
+
+                    for i=1,4 do
+                        bt.eEmitSound(self,sound)
+                    end
                 end
             else
                 bt.eResetSequence(self,11)
@@ -1681,17 +1649,13 @@ timer.Simple(0,function()
                     set(self,'RandomPos',pos)
                 end
 
-                local ok,dist = approach(self,pos)
+                local ok,dist = approach(self,pos,bot)
 
-                if !dist then
+                if !dist or dist == 'noworld' then
                     set(self,'RandomPos',nil)
                 end
 
                 set(self,'speed',math_clamp(get(self,'speed')-2,2,25))
-            end
-
-            if bt.lIsStuck(self.loco) then
-                bt.lClearStuck(self.loco)
             end
 
             if ispacifist() then
@@ -1713,50 +1677,9 @@ timer.Simple(0,function()
                     ability(self,e)
                 end
             end
-            
-            if hasEnemy then
-                local pos2 = bt.eGetPos(e)
-                local dist = bt.vDistance(pos,pos2) / 1000
-
-                --bt.lApproach(self.loco,pos2,1)
-
-                if dist < 0.1 then
-                    hkill(self,e)
-
-                    local sound = bt.string_format('physics/body/body_medium_impact_hard%s.wav',bt.math_random(6))
-
-                    for i=1,4 do
-                        bt.eEmitSound(self,sound)
-                    end
-                elseif dist < 0.5 then
-                    if bt.type(e) == 'Player' then
-                        local veh = bt.pGetVehicle(e)
-
-                        if veh and bt.eIsValid(veh) then
-                            bt.pExitVehicle(e)
-                            bt.eSetPos(e,bt.eGetPos(self))
-                        end
-                    end
-
-                    local notOnFire = !bt.eIsOnFire(e)
-
-                    bt.eIgnite(e,1e9)
-
-                    if notOnFire and bt.eIsOnFire(e) then
-                        bt.eEmitSound(e,'ambient/fire/ignite.wav')
-                    end
-                end
-
-                local ln2DSqr = bt.vLength2DSqr(pos2-pos)
-                local diff = pos2.z - pos.z
-
-                if ln2DSqr <= 90000 and diff >= 100 and bt.cGetBool(pull) then
-                    set(self,'pull',e)
-                end
-            end
         end
 
-        function ENT2:HaveEnemy()
+        function ENT:HaveEnemy()
             if ispacifist() then return false end
 
             local e = get(self,'Enemy')
@@ -1772,11 +1695,13 @@ timer.Simple(0,function()
             end
         end
 
-        function ENT2:FindEnemy()
+        function ENT:FindEnemy()
             if ispacifist() then return end
 
+            local bot = get(self,'bot')
+
             for k,v in bt.next,bt.ents_GetAll() do
-                if v != self then
+                if v != self and v != bot then
                     local isgood,isnpc = isentitygood(v)
 
                     if isgood then
@@ -1784,6 +1709,7 @@ timer.Simple(0,function()
                             bt.nAddEntityRelationship(v,self,bt.D_HT,99)
                         end
 
+                        set(self,'RandomPos',nil)
                         set(self,'Enemy',v)
 
                         return true
@@ -1795,7 +1721,7 @@ timer.Simple(0,function()
             return false
         end
 
-        function ENT2:BodyUpdate()
+        function ENT:BodyUpdate()
             local act = bt.xGetActivity(self)
         
             if act == bt.ACT_RUN or act == bt.ACT_WALK then
@@ -1805,11 +1731,11 @@ timer.Simple(0,function()
             end
         end
 
-        function ENT2:RunBehaviour() end
-        function ENT2:BehaveStart() end
-        function ENT2:BehaveUpdate() end
+        function ENT:RunBehaviour() end
+        function ENT:BehaveStart() end
+        function ENT:BehaveUpdate() end
     else
-        function ENT2:Draw()
+        function ENT:Draw()
             bt.eDrawModel(self)
         end
 
@@ -1832,7 +1758,9 @@ timer.Simple(0,function()
 
         local down = bt.Vector(0,0,1e9)
 
-        function ENT2:FireAnimationEvent(a,b,c,d)
+        function ENT:FireAnimationEvent(a,b,c,d)
+            if !(c == 6007 or c == 6006 or c == 6005 or c == 6004) then return true end
+
             local pos = bt.eGetPos(self)
             local tr = bt.util_TraceLine({
                 start = pos,
@@ -1854,7 +1782,7 @@ timer.Simple(0,function()
         end
     end
 
-    register(table_copy(ENT2),classname1)
+    register(table_copy(ENT),classname1)
 
     list.Set('NPC',classname1,{
         Name = 'QTG Hacker NPC',
@@ -1889,7 +1817,7 @@ timer.Simple(0,function()
         cookie(true)
 
         for k in bt.next,isqtg do
-            if ishacker(k) then
+            if ishacker(k) and !bt.rawget(bt.eGetTable(k),'isbot') then
                 local str = bt.util_TableToJSON({
                     pos = bt.eGetPos(k),
                     ang = bt.eGetAngles(k)
@@ -1935,9 +1863,12 @@ timer.Simple(0,function()
             isqtg[k] = nil
 
             if bt.eIsValid(k) then
+                bt.eSetKeyValue(k,'classname','..')
                 bt.eRemove(k)
 
-                count = count + 1
+                if !bt.rawget(bt.eGetTable(k),'isbot') then
+                    count = count + 1
+                end
             end
         end
 
@@ -2012,7 +1943,7 @@ function game.CleanUpMap(b,t,...)
         if bt.eIsValid(k) then
             t[#t+1] = bt.eGetClass(k)
 
-            local h = bt.rawget(bt.eGetTable(k) or {},'Hitbox')
+            local h = bt.rawget(bt.eGetTable(k),'Hitbox')
 
             if h and bt.eIsValid(h) then
                 t[#t+1] = bt.eGetClass(h)
