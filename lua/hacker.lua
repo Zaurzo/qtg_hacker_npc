@@ -402,23 +402,23 @@ end)
 local function table_copy(t,t2)
     if !t then return {} end
 
-	local copy = {}
+    local copy = {}
 
-	for k,v in bt.next,t do
-		if !bt.istable(v) then
-			copy[k] = v
-		else
+    for k,v in bt.next,t do
+        if !bt.istable(v) then
+            copy[k] = v
+        else
             if !t2 then t2 = {} end
 
             t2[t] = copy
 
-			if t2[v] then
-				copy[k] = t2[v]
-			else
-				copy[k] = table_copy(v,t2)
-			end
-		end
-	end
+            if t2[v] then
+                copy[k] = t2[v]
+            else
+                copy[k] = table_copy(v,t2)
+            end
+        end
+    end
 
     bt.setmetatable(copy,bt.debug_getmetatable(t))
 
@@ -484,6 +484,8 @@ add('OnKilled')
 add('isbot')
 add('boxa')
 add('boxb')
+add('Base')
+add('Type')
 
 protect(varblock)
 
@@ -570,8 +572,14 @@ if SERVER then
 
         function GM:OnNPCKilled(e,...)
             if !(e and isqtginre[e]) then
-                return old(GM,e,...)
+                return old(self,e,...)
             end
+        end
+    end)
+else
+    add('AddDeathNotice',function(attacker, t, inflictor, victim)
+        if victim == '#qtg_hacker_npc' then
+            return false
         end
     end)
 end
@@ -928,8 +936,6 @@ local skillset
 local sql_Query = sql.Query
 local player_GetAll = player.GetAll
 local navmesh_IsLoaded = SERVER and navmesh.IsLoaded
-
-local getDriver = FindMetaTable('Vehicle').GetDriver
 
 timer.Simple(0,function()
     if SERVER then
@@ -1305,23 +1311,6 @@ timer.Simple(0,function()
         bt.eSetCollisionGroup(self,10)
         bt.eSetCollisionBounds(self,bt.Vector(-1,-1,1/0),bt.Vector(1,1,1/0))
 
-        local hat = bt.ents_Create('prop_dynamic')
-
-        if bt.eIsValid(hat) then
-            local att = bt.eGetAttachment(self,7)
-
-            if att then
-                bt.eSetModel(hat,'models/player/items/all_class/trn_wiz_hat_spy.mdl')
-                bt.eSetPos(hat,att.Pos)
-                bt.eSetAngles(hat,bt.eGetAngles(self))
-                bt.eSetParent(hat,self,7)
-
-                set(self,'Hat',hat)
-            else
-                bt.eRemove(hat)
-            end
-        end
-
         local name = newstr()..newstr()..'_brain'
 
         bt.timer_Create(name, 0, 0, function()
@@ -1335,6 +1324,11 @@ timer.Simple(0,function()
     
             hackerThink(self)
         end)
+    end
+
+    function ENT:Think()
+        bt.eNextThink(self,bt.CurTime())
+        return true
     end
 
     if SERVER then
@@ -1519,6 +1513,7 @@ timer.Simple(0,function()
                 bt.eSetCollisionBounds(bot,get(self,'boxa'),get(self,'boxb'))
 
                 set(bot,'isbot',true)
+                set(bot,'ignore',true)
                 set(bot,'OnTakeDamage',onTakeDamage)
                 set(bot,'BehaveUpdate',pass)
                 set(bot,'OnKilled',pass)
@@ -1528,11 +1523,6 @@ timer.Simple(0,function()
 
                 return bot
             end
-        end
-
-        function ENT:Think()
-            bt.eNextThink(self,bt.CurTime())
-            return true
         end
 
         function ENT:HackerThink()
@@ -1548,6 +1538,30 @@ timer.Simple(0,function()
                 bot:SetCollisionBounds(get(self,'boxa'),get(self,'boxb'))
         
                 set(self,'bot',bot)
+            end
+
+            local hat = get(self,'Hat')
+
+            if !hat or !bt.eIsValid(hat) then
+                hat = bt.ents_Create('prop_dynamic')
+
+                if bt.eIsValid(hat) then
+                    isqtg[hat] = true
+                    
+                    local att = bt.eGetAttachment(self,7)
+
+                    if att then
+                        bt.eSetModel(hat,'models/player/items/all_class/trn_wiz_hat_spy.mdl')
+                        bt.eSetPos(hat,att.Pos)
+                        bt.eSetAngles(hat,bt.eGetAngles(self))
+                        bt.eSetParent(hat,self,7)
+
+                        set(self,'Hat',hat)
+                        set(self,'ignore',true)
+                    else
+                        bt.eRemove(hat)
+                    end
+                end
             end
 
             local pullent = get(self,'pull')
@@ -1819,7 +1833,7 @@ timer.Simple(0,function()
         cookie(true)
 
         for k in bt.next,isqtg do
-            if ishacker(k) and !bt.rawget(bt.eGetTable(k),'isbot') then
+            if ishacker(k) and !bt.rawget(bt.eGetTable(k),'ignore') then
                 local str = bt.util_TableToJSON({
                     pos = bt.eGetPos(k),
                     ang = bt.eGetAngles(k)
@@ -1868,7 +1882,7 @@ timer.Simple(0,function()
                 bt.eSetKeyValue(k,'classname','..')
                 bt.eRemove(k)
 
-                if !bt.rawget(bt.eGetTable(k),'isbot') then
+                if !bt.rawget(bt.eGetTable(k),'ignore') then
                     count = count + 1
                 end
             end
