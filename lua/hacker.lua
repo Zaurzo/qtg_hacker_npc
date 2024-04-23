@@ -13,31 +13,26 @@ local c = FindMetaTable('ConVar')
 local x = FindMetaTable('NextBot')
 local l = FindMetaTable('CLuaLocomotion')
 
+local SERVER = SERVER
+local CLIENT = CLIENT
+
 local bt = {}
 local isqtg = {}
 local isqtginre = {}
 
 local classname1 = '^!@$!@$!%$@$qsfqtsff!$@%!@$sfrq'
-local classname2 = 'wgduw&!%@^!%@qosi&!%@^%!@{qsh!}'
-
-local SERVER = SERVER
-local CLIENT = CLIENT
 
 local function ishacker(e)
     if !e or !bt.isentity(e) or !bt.eIsValid(e) then return false end
 
     if isqtg[e] then
-        return 1
+        return true
     end
 
     local classname = bt.eGetClass(e)
 
     if classname == classname1 then
-        return 1
-    end
-
-    if hitbox and classname == classname2 then
-        return 2
+        return true
     end
 
     return false
@@ -251,7 +246,7 @@ local function ofunc(tbl,k,isspawn,...)
             if bt.isentity(self) and bt.eIsValid(self) then
                 local class = bt.eGetClass(self)
 
-                if class == classname2 or class == classname1 then
+                if class == classname1 then
                     pass = true
                 end
             end
@@ -582,7 +577,7 @@ if SERVER then
 end
 
 add('PreRegisterSENT',function(t,classname)
-    if classname == classname1 or classname == classname2 then
+    if classname == classname1 then
         return true
     end
 end)
@@ -1177,44 +1172,6 @@ timer.Simple(0,function()
 
     protect(hkill)
 
-    local names = {
-        ':P',
-        'nothing',
-        '<REDACTED>',
-        'Nope.',
-        'you dare use ent_remove on me mortal?!',
-        'the world',
-        'teleported bread',
-        'the ability to remove me',
-        'you',
-        'a random entity',
-        'the ent_remove command',
-        'nah.',
-        'i think not!',
-        'Dr. Isaac Kleiner',
-        'G-Man',
-        'Odessa Cubbage',
-        'Jeep',
-        'DENIED!',
-        'LOL',
-        'npc_citizen',
-        'something about ducks',
-        'wow look at this classname',
-        'ERROR',
-        'NULL',
-        'nil',
-        '0 entities',
-        'Garry\'s Mod',
-        'the game',
-        'garry',
-        'Rollermine',
-        'Male 07',
-        'Valve',
-        'Gabe Newell',
-        'me',
-        ''
-    }
-
     local function cvar(a,b,d)
         if SERVER then
             return bt.CreateConVar(a,d or 0,FCVAR_ARCHIVE+FCVAR_PROTECTED,b)
@@ -1402,7 +1359,7 @@ timer.Simple(0,function()
         local function approach(self,pos,bot)
             if !bot or !bt.eIsValid(bot) then return end
 
-            local pos1 = approaches[self]
+            local pos1 = approaches[self] or pos
 
             if navmesh_IsLoaded() then
                 local path = bt.Path('Follow')
@@ -1506,11 +1463,54 @@ timer.Simple(0,function()
 
             local pass = function() end
 
+            local names = {
+                ':P',
+                'nothing',
+                '<REDACTED>',
+                'Nope.',
+                'you dare use ent_remove on me mortal?!',
+                'the world',
+                'teleported bread',
+                'the ability to remove me',
+                'you',
+                'a random entity',
+                'the ent_remove command',
+                'nah.',
+                'i think not!',
+                'Dr. Isaac Kleiner',
+                'G-Man',
+                'Odessa Cubbage',
+                'Jeep',
+                'DENIED!',
+                'LOL',
+                'npc_citizen',
+                'something about ducks',
+                'wow look at this classname',
+                'ERROR',
+                'NULL',
+                'nil',
+                '0 entities',
+                'Garry\'s Mod',
+                'the game',
+                'garry',
+                'Rollermine',
+                'Male 07',
+                'Valve',
+                'Gabe Newell',
+                'me',
+                ''
+            }
+
+            local n = #names
+
             function setupBot(self)
                 local bot = bt.ents_Create('base_nextbot')
                 if !bt.eIsValid(bot) then return end
 
                 isqtg[bot] = true
+
+                bt.eSetName(bot,' ')
+                bt.eSetKeyValue(bot,'classname',names[bt.math_random(n)]..' ')
             
                 bt.eSetPos(bot,self:GetPos())
                 bt.eSpawn(bot)
@@ -1523,6 +1523,8 @@ timer.Simple(0,function()
                 set(bot,'BehaveUpdate',pass)
                 set(bot,'OnKilled',pass)
                 set(bot,'BehaveStart',pass)
+
+                bt.eDeleteOnRemove(self,bot)
 
                 return bot
             end
