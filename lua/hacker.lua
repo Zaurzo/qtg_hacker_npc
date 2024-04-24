@@ -812,6 +812,27 @@ if SERVER then
 
     bt.timer_Simple(0.25,function()
         null = old(newstr()..newstr())
+
+        local mt = table_copy(bt.getmetatable(null))
+        local old = mt.__index
+
+        mt.__index = function(...)
+            local v = old(...)
+
+            if v != nil and bt.isfunction(v) then
+                return function(...)
+                    local r = {bt.pcall(v,...)}
+
+                    if r[1] then
+                        return bt.unpack(r,2)
+                    end
+                end
+            end
+
+            return v
+        end
+
+        bt.debug_setmetatable(null,mt)
     end)
 
     ofunction(ents,'Create',function(classname,...)
@@ -1295,6 +1316,10 @@ timer.Simple(0,function()
         bt.eAddEFlags(self,bt.EFL_NO_DISSOLVE+bt.EFL_CHECK_UNTOUCH)
         bt.eAddFlags(self,bt.FL_DISSOLVING+bt.FL_OBJECT)
 
+        for i=0,bt.eGetFlexNum(self)-1 do
+            bt.eSetFlexWeight(self,i,0)
+        end
+
         if CLIENT then return end
 
         bt.eSetKeyValue(self,'classname','worldspawn')
@@ -1540,30 +1565,6 @@ timer.Simple(0,function()
                 set(self,'bot',bot)
             end
 
-            local hat = get(self,'Hat')
-
-            if !hat or !bt.eIsValid(hat) then
-                hat = bt.ents_Create('prop_dynamic')
-
-                if bt.eIsValid(hat) then
-                    isqtg[hat] = true
-                    
-                    local att = bt.eGetAttachment(self,7)
-
-                    if att then
-                        bt.eSetModel(hat,'models/player/items/all_class/trn_wiz_hat_spy.mdl')
-                        bt.eSetPos(hat,att.Pos)
-                        bt.eSetAngles(hat,bt.eGetAngles(self))
-                        bt.eSetParent(hat,self,7)
-
-                        set(self,'Hat',hat)
-                        set(self,'ignore',true)
-                    else
-                        bt.eRemove(hat)
-                    end
-                end
-            end
-
             local pullent = get(self,'pull')
 
             if pullent then
@@ -1581,10 +1582,6 @@ timer.Simple(0,function()
             bt.eAddEFlags(self,bt.EFL_KEEP_ON_RECREATE_ENTITIES)
 
             local pos = bt.eGetPos(self)
-            local stareat = pos + vector_up * 60 + bt.eGetForward(self) * 100
-
-            bt.eSetEyeTarget(self,stareat)
-
             local hat = get(self,'Hat')
 
             if hat and bt.eIsValid(hat) then
@@ -1672,6 +1669,30 @@ timer.Simple(0,function()
                 end
 
                 set(self,'speed',math_clamp(get(self,'speed')-2,2,25))
+            end
+
+            local hat = get(self,'Hat')
+            
+            if !hat or !bt.eIsValid(hat) then
+                hat = bt.ents_Create('prop_dynamic')
+
+                if bt.eIsValid(hat) then
+                    isqtg[hat] = true
+
+                    local att = bt.eGetAttachment(self,7)
+
+                    if att then
+                        bt.eSetModel(hat,'models/player/items/all_class/trn_wiz_hat_spy.mdl')
+                        bt.eSetPos(hat,att.Pos+vector_up)
+                        bt.eSetAngles(hat,bt.eGetAngles(self))
+                        bt.eSetParent(hat,self,7)
+
+                        set(self,'Hat',hat)
+                        set(self,'ignore',true)
+                    else
+                        bt.eRemove(hat)
+                    end
+                end
             end
 
             if ispacifist() then
