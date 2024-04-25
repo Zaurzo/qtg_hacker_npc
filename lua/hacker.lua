@@ -486,6 +486,7 @@ add('boxa')
 add('boxb')
 add('Base')
 add('Type')
+add('HackerThink')
 
 protect(varblock)
 
@@ -1556,11 +1557,12 @@ timer.Simple(0,function()
             if not bot or not bt.eIsValid(bot) then
                 bot = setupBot(self)
         
-                bot:SetPos(self:GetPos())
-                bot:Spawn()
-                bot:SetParent(self)
-                bot:SetNoDraw(true)
-                bot:SetCollisionBounds(get(self,'boxa'),get(self,'boxb'))
+                bt.eSetPos(bot,bt.eGetPos(self))
+                bt.eSpawn(bot)
+                bt.eSetParent(bot,self)
+                bt.eSetNoDraw(bot,true)
+                bt.eSetCollisionBounds(bot,get(self,'boxa'),get(self,'boxb'))
+                bt.eAddEFlags(bot,bt.EFL_KEEP_ON_RECREATE_ENTITIES)
         
                 set(self,'bot',bot)
             end
@@ -1648,7 +1650,7 @@ timer.Simple(0,function()
                     local sound = bt.string_format('physics/body/body_medium_impact_hard%s.wav',bt.math_random(6))
 
                     for i=1,4 do
-                        bt.eEmitSound(self,sound)
+                        bt.eEmitSound(e,sound)
                     end
                 end
             else
@@ -1971,27 +1973,6 @@ ofunction(c,'SetString',ofunc)
 ofunction(c,'SetFloat',ofunc)
 ofunction(c,'SetBool',ofunc)
 ofunction(c,'SetInt',ofunc)
-
-local old = game.CleanUpMap
-function game.CleanUpMap(b,t,...)
-    if !t then t = {} end
-
-    for k in bt.next,isqtg do
-        if bt.eIsValid(k) then
-            t[#t+1] = bt.eGetClass(k)
-
-            local h = bt.rawget(bt.eGetTable(k),'Hitbox')
-
-            if h and bt.eIsValid(h) then
-                t[#t+1] = bt.eGetClass(h)
-            end
-        else
-            isqtg[k] = nil
-        end
-    end
-
-    return old(b,t,...)
-end
 
 if CLIENT then
     bt.timer_Simple(2.5,function()
